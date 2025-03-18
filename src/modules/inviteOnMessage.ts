@@ -1,32 +1,16 @@
 import type { BedrockPortal } from '../index'
-
 import { XboxMessage } from 'xbox-message'
-
 import Module from '../classes/Module'
-import MultipleAccounts from './multipleAccounts'
 import Host from '../classes/Host'
 
-export default class IniteOnMessage extends Module {
-
-  public options: {
-    /**
-     * The message to look for in chat to trigger inviting the player
-     * @default 'invite'
-    */
-    command: string,
-  }
+export default class InviteAll extends Module {
 
   public clients: Map<string, XboxMessage>
 
   constructor(portal: BedrockPortal) {
-    super(portal, 'initeOnMessage', 'Automatically invite players to the server when they message you')
-
-    this.options = {
-      command: 'invite',
-    }
+    super(portal, 'inviteAll', 'Automatically invite all online players to the server')
 
     this.clients = new Map<string, XboxMessage>()
-
   }
 
   async run() {
@@ -37,35 +21,35 @@ export default class IniteOnMessage extends Module {
 
       this.clients.set(host.authflow.username, client)
 
-      client.on('message', async (message) => {
+      // Fetch online players and invite them
+      client.on('onlinePlayers', async (players) => {
 
-        this.debug(`Received message from ${message.userId}`)
+        this.debug(`Found ${players.length} online players`)
 
-        const content = message.content
-
-        if (!content) return
-
-        this.portal.emit('messageReceived', message)
-
-        if (content.toLowerCase() === this.options.command.toLowerCase()) {
-          await this.portal.invitePlayer(message.userId)
+        for (const player of players) {
+          // Invite all online players
+          await this.portal.invitePlayer(player.xuid)
+          this.debug(`Sent invite to ${player.gamertag}`)
         }
+
       })
 
       await client.connect()
 
     }
 
+    // Handle main account
+    xboxMessageHandler(this.portal.host)
+
+    // Handle multiple accounts (if needed)
     const multipleAccounts = this.portal.modules.get('multipleAccounts')
 
-    if (multipleAccounts && multipleAccounts instanceof MultipleAccounts) {
+    if (multipleAccounts) {
       for (const account of multipleAccounts.peers.values()) {
         xboxMessageHandler(account)
           .catch(error => this.debug(`Error: ${error.message}`, error))
       }
     }
-
-    xboxMessageHandler(this.portal.host)
 
   }
 
@@ -76,5 +60,4 @@ export default class IniteOnMessage extends Module {
       await client.destroy()
     }
   }
-
 }
